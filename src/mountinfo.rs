@@ -65,7 +65,7 @@ pub fn parse_mountinfo(line: &str) -> MountInfo {
     }
 
     // skip hyphen
-    next_idx += 1;  
+    next_idx += 1;
     if next_idx + 2 >= v.len() {
         panic!("incomplete mountinfo line");
     }
@@ -80,8 +80,8 @@ pub fn parse_mountinfo(line: &str) -> MountInfo {
 
 #[cfg(test)]
 mod tests {
-    use crate::mountinfo::parse_mountinfo;
     use crate::mountinfo::get_mountinfo_list;
+    use crate::mountinfo::parse_mountinfo;
 
     #[test]
     fn test_parse_mountinfo() {
@@ -99,7 +99,13 @@ mod tests {
         assert_eq!(mntinfo.mount_source, "dev");
         assert_eq!(
             mntinfo.super_options,
-            ["rw","size=7631200k","nr_inodes=1907800","mode=755","inode64"]
+            [
+                "rw",
+                "size=7631200k",
+                "nr_inodes=1907800",
+                "mode=755",
+                "inode64"
+            ]
         );
         println!("{:?}", mntinfo);
     }
@@ -120,7 +126,13 @@ mod tests {
         assert_eq!(mntinfo.mount_source, "dev");
         assert_eq!(
             mntinfo.super_options,
-            ["rw","size=7631200k","nr_inodes=1907800","mode=755","inode64"]
+            [
+                "rw",
+                "size=7631200k",
+                "nr_inodes=1907800",
+                "mode=755",
+                "inode64"
+            ]
         );
         println!("{:?}", mntinfo);
     }
