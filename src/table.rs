@@ -112,8 +112,8 @@ impl ToString for Table {
 #[cfg(test)]
 mod tests {
     use crate::table;
-    use crate::table::Table;
     use crate::table::FieldAlign;
+    use crate::table::Table;
 
     #[test]
     fn test() {

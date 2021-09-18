@@ -2,17 +2,57 @@ use std::fs;
 
 #[derive(Debug, Default)]
 pub struct MountInfo {
-    mount_id: u32,
-    parent_mount_id: u32,
-    major_dev: u32,
-    minor_dev: u32,
-    root: String,
-    mount_point: String,
-    mount_options: Vec<String>,
-    optional_fields: Option<Vec<String>>,
-    fs_type: String,
-    mount_source: String,
-    super_options: Vec<String>,
+    pub mount_id: u32,
+    pub parent_mount_id: u32,
+    pub major_dev: u32,
+    pub minor_dev: u32,
+    pub root: String,
+    pub mount_point: String,
+    pub mount_options: Vec<String>,
+    pub optional_fields: Option<Vec<String>>,
+    pub fs_type: String,
+    pub mount_source: String,
+    pub super_options: Vec<String>,
+}
+
+impl MountInfo {
+    pub fn dev(&self) -> u64 {
+        // refer to linux/kdev_t.h
+        ((self.major_dev as u64) << 8) | self.minor_dev as u64
+    }
+    /**
+     * refer to mountlist.c:read_file_system_list for detailed explaination
+     */
+    pub fn is_remote(&self) -> bool {
+        self.mount_source.contains(':')
+            || (self.mount_source.starts_with("//")
+                && (&["smbfs", "smb3", "cifs"])
+                    .into_iter()
+                    .any(|x| x.eq(&self.fs_type)))
+            || (&["afs", "auristorfs"])
+                .into_iter()
+                .any(|x| x.eq(&self.fs_type))
+            || self.mount_source.eq("-hosts")
+    }
+
+    pub fn is_dummy(&self) -> bool {
+        let dummy_fs_type = [
+            "autofs",
+            "proc",
+            "subfs",
+            "debugfs",
+            "devpts",
+            "fusectl",
+            "mqueue",
+            "rpc_pipefs",
+            "sysfs",
+            "devfs",
+            "kernfs",
+            "ignore",
+            "none",
+        ];
+        (&dummy_fs_type).into_iter().any(|x| x.eq(&self.fs_type))
+    }
 }
 
 /**
