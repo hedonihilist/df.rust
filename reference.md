@@ -17,7 +17,7 @@
 |size| 文件系统的总block数 |
 |used| 已使用的block数 |
 |avail| 可用的block数 |
-|pcent   | 可用的block百分比 |
+|pcent   | 已使用的block百分比 |
 |file    | 作为参数输入的文件名 |
 |target  | 挂载点 |
 

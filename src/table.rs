@@ -1,5 +1,17 @@
 use std::collections::HashMap;
 
+macro_rules! lines {
+    ($( $x:expr ),* $(,)?) => {
+        {
+            let mut v = vec![];
+            $(
+                v.push(($x).to_string());
+            )*
+            v.join("\n")
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Table {
     fields: Vec<String>,
@@ -77,9 +89,65 @@ impl Table {
     pub fn whitespace(n: usize) -> String {
         (0..n).map(|_| ' ').collect::<String>()
     }
+
+    /**
+     * 只输出指定的field
+     */
+    pub fn to_string_partial<T: AsRef<str>>(&self, field_list: &[T]) -> String {
+        // get field -> idx mapping
+        let mut field_idx: HashMap<&str, usize> = HashMap::new();
+        for (i, x) in self.fields.iter().enumerate() {
+            field_idx.insert(x, i);
+        }
+
+        // get column align
+        let mut align_list: Vec<&FieldAlign> = vec![];
+        for field in self.fields.iter() {
+            align_list.push(self.aligns.get(field).unwrap_or(&self.align));
+        }
+
+        // get idx list of from field_list
+        let mut idx_list: Vec<usize> = vec![];
+        for field in field_list.iter() {
+            if let Some(&idx) = field_idx.get(field.as_ref()) {
+                idx_list.push(idx);
+            } else {
+                panic!("field {} doesn't exist in table", field.as_ref());
+            }
+        }
+
+        let mut rows: Vec<String> = vec![];
+
+        // first row
+        let mut header: Vec<String> = vec![];
+        for &idx in idx_list.iter() {
+            header.push(Self::padding(
+                &self.fields[idx],
+                self.column_width[idx],
+                align_list[idx],
+            ));
+        }
+        rows.push(header.join(&" ".to_string()));
+
+        // content
+        for r in self.content.iter() {
+            let mut row = vec![];
+            for &idx in idx_list.iter() {
+                row.push(Self::padding(
+                    &r[idx],
+                    self.column_width[idx],
+                    align_list[idx],
+                ));
+            }
+            rows.push(row.join(&" ".to_string()));
+        }
+
+        rows.join(&"\n".to_string())
+    }
 }
 
 impl ToString for Table {
+    /*
     fn to_string(&self) -> String {
         // get column align
         let mut align_list: Vec<&FieldAlign> = vec![];
@@ -106,6 +174,10 @@ impl ToString for Table {
         }
 
         rows.join(&"\n".to_string())
+    }
+     */
+    fn to_string(&self) -> String {
+        self.to_string_partial(&self.fields)
     }
 }
 
@@ -159,13 +231,37 @@ mod tests {
         table.add_row(&vec!["Hermione", "15", "hermione@163.com"]);
         assert_eq!(
             table.to_string(),
-            format!(
-                "{}\n{}\n{}\n{}",
+            lines!(
                 "Username age email           ",
                 "Harry     15 harry@163.com   ",
                 "Ron       15 ron@163.com     ",
                 "Hermione  15 hermione@163.com",
             )
         );
+    }
+
+    #[test]
+    fn test_table_to_string_partial() {
+        let header = vec!["Username", "age", "email"];
+        let mut table = Table::new(&header);
+        table.set_align(FieldAlign::Left);
+        table.set_field_align("age", FieldAlign::Right);
+        table.add_row(&vec!["Harry", "15", "harry@163.com"]);
+        table.add_row(&vec!["Ron", "15", "ron@163.com"]);
+        table.add_row(&vec!["Hermione", "15", "hermione@163.com"]);
+        assert_eq!(
+            table.to_string_partial(&vec!["Username", "email"]),
+            lines!(
+                "Username email           ",
+                "Harry    harry@163.com   ",
+                "Ron      ron@163.com     ",
+                "Hermione hermione@163.com",
+            )
+        );
+    }
+
+    #[test]
+    fn test_lines() {
+        assert_eq!("a\nb\nc\nd", lines!("a","b","c","d"));
     }
 }

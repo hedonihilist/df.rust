@@ -1,14 +1,20 @@
 mod mountinfo;
 mod table;
 
+use nix;
 use mountinfo::MountInfo;
 use std::collections::{HashMap, HashSet};
 use std::process::id;
 use table::Table;
+use std::fs::read_to_string;
+use nix::sys::statvfs::Statvfs;
 
+#[derive(Debug, Default)]
 struct FsUsage {
     source: String,
     fstype: String,
+    file: String,
+    target: String,
     itotal: u64,
     iused: u64,
     iavail: u64,
@@ -17,29 +23,90 @@ struct FsUsage {
     used: u64,
     avail: u64,
     pcent: u32,
-    file: String,
-    target: String,
 }
 
-impl Into<Table> for FsUsage {
-
+impl FsUsage {
+    fn new() -> FsUsage {
+        FsUsage {
+            source: "-".to_owned(),
+            fstype: "-".to_owned(),
+            file: "-".to_owned(),
+            target: "-".to_owned(),
+            ..Default::default()
+        }
+    }
 }
 
-impl TryFrom<MountInfo> for FsUsage {
-
-}
 
 fn get_dev(mount: MountInfo, options: &Options) -> Option<FsUsage> {
+    if mount.is_remote() && options.show_local_fs {
+        return None;
+    }
+    if mount.is_dummy() && !options.show_all_fs && options.listed_fs.is_empty() {
+        return None;
+    }
+    // fs_type not listed
+    if !options.listed_fs.is_empty() && !options.listed_fs.contains(&mount.fs_type) || options.excluded_fs.contains(&mount.fs_type) {
+        return None;
+    }
 
+    // TODO
+    // grand total
+    let mut fs_usage = FsUsage::new();
+
+    // stat the fs
+    if let Ok(stat) = nix::sys::statvfs::statvfs::<str>(mount.mount_point.as_ref()) {
+        // 信息读取成功
+        // 填充各种信息
+        // block
+        fs_usage.size = stat.blocks();
+        fs_usage.used = stat.blocks() - stat.blocks_free();
+        fs_usage.avail = stat.blocks_free();
+        fs_usage.pcent = match fs_usage.size != 0 {
+            true => (100u64 * fs_usage.used / fs_usage.size) as u32,
+            false => 0,
+        };
+        // inode
+        fs_usage.itotal = stat.files();
+        fs_usage.iused = stat.files() - stat.files_free();
+        fs_usage.avail = stat.files_free();
+        fs_usage.ipcent = match fs_usage.itotal != 0 {
+            true => (100u64 * fs_usage.iused / fs_usage.itotal) as u32,
+            false => 0,
+        };
+
+        fs_usage.fstype = mount.fs_type;
+        fs_usage.source = mount.mount_source;
+        fs_usage.target = mount.mount_point;
+    } else {
+        // TODO 判断是不是权限原因
+        return None;
+    }
+
+    if fs_usage.size == 0 && !options.show_all_fs && options.listed_fs.is_empty() {
+        return None;
+    }
+
+    Some(fs_usage)
 }
 
 fn get_all_entries(options: &Options) -> Table {
     let mountlist = filter_mountinfo_list(mountinfo::get_mountinfo_list(), options);
 
+    // decide the fields
+
     // get fs usage
-    
+    for mount in mountlist.into_iter() {
+        if let Some(fsu) = get_dev(mount, options) {
+            println!("{:?}", &fsu);
+            // convert to
+        } else {
+            //println!("ignored");
+        }
+    }
 
     // store in table
+    Table::new(&vec![""])
 }
 
 #[derive(Default)]
@@ -124,14 +191,5 @@ fn filter_mountinfo_list(list: Vec<MountInfo>, options: &Options) -> Vec<MountIn
 }
 
 fn main() {
-    let mount = mountinfo::get_mountinfo_list();
-    println!("size: {}", mount.len());
-    let filtered = filter_mountinfo_list(mount, &Options::new());
-    println!("size: {}", filtered.len());
-    for mountinfo in filtered.into_iter() {
-        println!(
-            "{}:{} => {}",
-            mountinfo.major_dev, mountinfo.minor_dev, mountinfo.mount_point
-        );
-    }
+    get_all_entries(&Options::default());
 }
