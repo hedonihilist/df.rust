@@ -4,6 +4,43 @@ mod table;
 use mountinfo::MountInfo;
 use std::collections::{HashMap, HashSet};
 use std::process::id;
+use table::Table;
+
+struct FsUsage {
+    source: String,
+    fstype: String,
+    itotal: u64,
+    iused: u64,
+    iavail: u64,
+    ipcent: u32,
+    size: u64,
+    used: u64,
+    avail: u64,
+    pcent: u32,
+    file: String,
+    target: String,
+}
+
+impl Into<Table> for FsUsage {
+
+}
+
+impl TryFrom<MountInfo> for FsUsage {
+
+}
+
+fn get_dev(mount: MountInfo, options: &Options) -> Option<FsUsage> {
+
+}
+
+fn get_all_entries(options: &Options) -> Table {
+    let mountlist = filter_mountinfo_list(mountinfo::get_mountinfo_list(), options);
+
+    // get fs usage
+    
+
+    // store in table
+}
 
 #[derive(Default)]
 struct Options {
