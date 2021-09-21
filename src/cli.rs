@@ -7,10 +7,10 @@ pub struct Options {
     pub show_all_fs: bool,
     pub listed_fs: HashSet<String>,
     pub excluded_fs: HashSet<String>,
-    pub human_readable: bool, // true => powers of 1024, false => powers of 1000
+    pub human_readable: bool,
     pub print_grand_total: bool,
     pub field_list: Vec<String>,
-    pub human_readable_1024: bool,
+    pub human_readable_1024: bool, // true => show size in powers of 1024, false => powers of 1000
     pub inodes: bool,
     pub show_fs_type: bool,
     pub output_all_fields: bool,

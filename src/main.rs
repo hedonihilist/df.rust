@@ -2,6 +2,7 @@ mod cli;
 mod mountinfo;
 mod table;
 
+use crate::table::FieldAlign::{Left, Right};
 use cli::Options;
 use mountinfo::MountInfo;
 use nix;
@@ -9,7 +10,7 @@ use nix::sys::statvfs::Statvfs;
 use std::collections::{HashMap, HashSet};
 use std::fs::read_to_string;
 use std::process::id;
-use table::Table;
+use table::{FieldAlign, Table};
 
 #[derive(Debug, Default)]
 struct FsUsage {
@@ -39,6 +40,17 @@ impl FsUsage {
     }
 }
 
+/**
+ * a/b = ?%
+ */
+fn percent_round_up(a: u64, b: u64) -> u32 {
+    if 100u64 * a % b == 0 {
+        (100u64 * a / b) as u32
+    } else {
+        1 + (100u64 * a / b) as u32
+    }
+}
+
 fn get_dev(mount: MountInfo, options: &Options) -> Option<FsUsage> {
     if mount.is_remote() && options.show_local_fs {
         return None;
@@ -64,17 +76,22 @@ fn get_dev(mount: MountInfo, options: &Options) -> Option<FsUsage> {
         // block
         fs_usage.size = stat.blocks();
         fs_usage.used = stat.blocks() - stat.blocks_free();
-        fs_usage.avail = stat.blocks_free();
+        fs_usage.avail = stat.blocks_available();
+        // 显示时按照1K大小的块显示
+        fs_usage.size = fs_usage.size * stat.fragment_size() / 1024;
+        fs_usage.used = fs_usage.used * stat.fragment_size() / 1024;
+        fs_usage.avail = fs_usage.avail * stat.fragment_size() / 1024;
+        // round up
         fs_usage.pcent = match fs_usage.size != 0 {
-            true => (100u64 * fs_usage.used / fs_usage.size) as u32,
+            true => percent_round_up(fs_usage.used, fs_usage.used + fs_usage.avail), // 不是除fs_usage.size，见coreutils中的df
             false => 0,
         };
         // inode
         fs_usage.itotal = stat.files();
-        fs_usage.iused = stat.files() - stat.files_free();
-        fs_usage.avail = stat.files_free();
+        fs_usage.iused = stat.files() - stat.files_available();
+        fs_usage.iavail = stat.files_available();
         fs_usage.ipcent = match fs_usage.itotal != 0 {
-            true => (100u64 * fs_usage.iused / fs_usage.itotal) as u32,
+            true => percent_round_up(fs_usage.iused, fs_usage.iused + fs_usage.iavail),
             false => 0,
         };
 
@@ -98,18 +115,84 @@ fn get_all_entries(options: &Options) -> Table {
 
     // decide the fields
 
+    let fields = vec![
+        "Filesystem",
+        "Type",
+        "Inodes",
+        "IUsed",
+        "IFree",
+        "IUse%",
+        "1K-blocks",
+        "Used",
+        "Avail",
+        "Use%",
+        "File",
+        "Mounted",
+    ];
+    let align_list = vec![
+        Left, Left, Right, Right, Right, Right, Right, Right, Right, Right, Left, Left,
+    ];
+    let mut table = Table::new(&fields);
+    for (i, align) in align_list.into_iter().enumerate() {
+        table.set_field_align(fields[i], align);
+    }
+
     // get fs usage
     for mount in mountlist.into_iter() {
         if let Some(fsu) = get_dev(mount, options) {
-            println!("{:?}", &fsu);
+            // populate a table
+            let mut row: Vec<String> = vec![];
+
+            // source
+            row.push(fsu.source);
+
+            // fs_type
+            row.push(fsu.fstype);
+
+            // Inodes
+            row.push(fsu.itotal.to_string());
+
+            // Inode used
+            row.push(fsu.iused.to_string());
+
+            // Inode free
+            row.push(fsu.iavail.to_string());
+
+            // Inode percent
+            if fsu.itotal == 0 {
+                row.push("-".to_string());
+            } else {
+                row.push(fsu.ipcent.to_string() + "%");
+            }
+
+            // blocks
+            row.push(fsu.size.to_string());
+
+            // block used
+            row.push(fsu.used.to_string());
+
+            // block available
+            row.push(fsu.avail.to_string());
+
+            // block used percent
+            row.push(fsu.pcent.to_string() + "%");
+
+            // TODO File
+            row.push("-".to_string());
+
+            // mount point
+            row.push(fsu.target.to_string());
+            //println!("{:?}", &fsu);
             // convert to
+            table.add_row(&row);
         } else {
             //println!("ignored");
         }
     }
 
+    table
     // store in table
-    Table::new(&vec![""])
+    //Table::new(&vec![""])
 }
 
 /**
@@ -172,6 +255,7 @@ fn filter_mountinfo_list(list: Vec<MountInfo>, options: &Options) -> Vec<MountIn
 }
 
 fn main() {
-    println!("{:?}", cli::parse_args());
-    //get_all_entries(&Options::default());
+    //println!("{:?}", cli::parse_args());
+    let table = get_all_entries(&Options::default());
+    println!("{}", table.to_string());
 }
