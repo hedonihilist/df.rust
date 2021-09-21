@@ -1,13 +1,15 @@
+mod cli;
 mod mountinfo;
 mod table;
 
-use nix;
+use cli::Options;
 use mountinfo::MountInfo;
+use nix;
+use nix::sys::statvfs::Statvfs;
 use std::collections::{HashMap, HashSet};
+use std::fs::read_to_string;
 use std::process::id;
 use table::Table;
-use std::fs::read_to_string;
-use nix::sys::statvfs::Statvfs;
 
 #[derive(Debug, Default)]
 struct FsUsage {
@@ -37,7 +39,6 @@ impl FsUsage {
     }
 }
 
-
 fn get_dev(mount: MountInfo, options: &Options) -> Option<FsUsage> {
     if mount.is_remote() && options.show_local_fs {
         return None;
@@ -46,7 +47,9 @@ fn get_dev(mount: MountInfo, options: &Options) -> Option<FsUsage> {
         return None;
     }
     // fs_type not listed
-    if !options.listed_fs.is_empty() && !options.listed_fs.contains(&mount.fs_type) || options.excluded_fs.contains(&mount.fs_type) {
+    if !options.listed_fs.is_empty() && !options.listed_fs.contains(&mount.fs_type)
+        || options.excluded_fs.contains(&mount.fs_type)
+    {
         return None;
     }
 
@@ -109,28 +112,6 @@ fn get_all_entries(options: &Options) -> Table {
     Table::new(&vec![""])
 }
 
-#[derive(Default)]
-struct Options {
-    show_local_fs: bool,
-    show_all_fs: bool,
-    listed_fs: HashSet<String>,
-    excluded_fs: HashSet<String>,
-    human_readable: bool, // true => powers of 1024, false => powers of 1000
-    print_grand_total: bool,
-    field_list: Vec<String>,
-}
-
-impl Options {
-    fn new() -> Options {
-        Options {
-            show_local_fs: true,
-            show_all_fs: false,
-            human_readable: true,
-            ..Default::default()
-        }
-    }
-}
-
 /**
  * df.c中的filter_mountinfo_list的作用是去重，而不是根据输入的参数过滤掉mountinfo
  * 真正的过滤在get_dev中
@@ -191,5 +172,6 @@ fn filter_mountinfo_list(list: Vec<MountInfo>, options: &Options) -> Vec<MountIn
 }
 
 fn main() {
-    get_all_entries(&Options::default());
+    println!("{:?}", cli::parse_args());
+    //get_all_entries(&Options::default());
 }

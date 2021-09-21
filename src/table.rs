@@ -262,6 +262,6 @@ mod tests {
 
     #[test]
     fn test_lines() {
-        assert_eq!("a\nb\nc\nd", lines!("a","b","c","d"));
+        assert_eq!("a\nb\nc\nd", lines!("a", "b", "c", "d"));
     }
 }

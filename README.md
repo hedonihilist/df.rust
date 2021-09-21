@@ -1,4 +1,4 @@
-# `df` writen in Rust
+# `df` written in Rust
 
 ### Introduction
 
