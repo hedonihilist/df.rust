@@ -70,6 +70,52 @@ fn fieldname_to_label(s: &str) -> &str {
     }
 }
 
+// power should be 1000 or 1024
+fn human_readable(size: u64, power: u64) -> String {
+    let surfix = ["B", "K", "M", "G", "T", "P"];
+
+    // short cut
+    if size == 0 {
+        return "0".to_string();
+    }
+    if size < power {
+        return format!("{}B", size);
+    }
+
+    // left.right<Unit>
+    // 1.9G etc.
+    let mut left = 0;
+    let mut right = 0;
+
+    // left
+    let mut i: u32 = 0;
+    while size >= power.pow(i) {
+        i += 1;
+    }
+    i -= 1;
+
+    let weight = power.pow(i);
+    left = size / weight;
+
+    // right
+    let fraction = ((size % weight) as f64 / weight as f64) * 10f64;
+    right = fraction.ceil() as u64;
+    if right >= 10 {
+        left += 1;
+        right = 0;
+    }
+
+    if left >= 10 {
+        // round up right
+        if right != 0 {
+            left += 1;
+        }
+        return format!("{}{}", left, surfix[i as usize]);
+    }
+
+    format!("{}.{}{}", left, right, surfix[i as usize])
+}
+
 fn get_dev(mount: MountInfo, options: &Options) -> Option<FsUsage> {
     if mount.is_remote() && options.show_local_fs {
         return None;
@@ -129,7 +175,6 @@ fn get_dev(mount: MountInfo, options: &Options) -> Option<FsUsage> {
     Some(fs_usage)
 }
 
-
 fn options_to_fields(options: &Options) -> Vec<String> {
     if options.output_all_fields {
         return vec![
@@ -145,7 +190,10 @@ fn options_to_fields(options: &Options) -> Vec<String> {
             "Use%",
             "File",
             "Mounted on",
-        ].iter().map(|x| x.to_string()).collect();
+        ]
+        .iter()
+        .map(|x| x.to_string())
+        .collect();
     }
     if !options.field_list.is_empty() {
         let mut fields = vec![];
@@ -156,7 +204,7 @@ fn options_to_fields(options: &Options) -> Vec<String> {
             }
             fields.push(name.to_owned());
         }
-        return fields
+        return fields;
     }
     // 没有写明fields, 默认现实block，写明了inode则显示inodes
     if options.inodes {
@@ -167,7 +215,10 @@ fn options_to_fields(options: &Options) -> Vec<String> {
             "IFree",
             "IUse%",
             "Mounted on",
-        ].iter().map(|x| x.to_string()).collect();
+        ]
+        .iter()
+        .map(|x| x.to_string())
+        .collect();
     }
     vec![
         "Filesystem",
@@ -177,11 +228,21 @@ fn options_to_fields(options: &Options) -> Vec<String> {
         "Use%",
         "File",
         "Mounted on",
-    ].iter().map(|x| x.to_string()).collect()
+    ]
+    .iter()
+    .map(|x| x.to_string())
+    .collect()
 }
 
 fn show_table(options: &Options, table: &Table) {
-    let fields = options_to_fields(options);
+    let mut fields = options_to_fields(options);
+    if options.human_readable {
+        for i in 0..fields.len() {
+            if fields[i].eq("1K-blocks") {
+                fields[i] = "Size".to_owned();
+            }
+        }
+    }
     println!("{}", table.to_string_partial(&fields));
 }
 
@@ -238,14 +299,29 @@ fn get_all_entries(options: &Options) -> Table {
                 row.push(fsu.ipcent.to_string() + "%");
             }
 
-            // blocks
-            row.push(fsu.size.to_string());
+            if options.human_readable {
+                let power: u64 = match options.human_readable_1024 {
+                    true => 1024,
+                    false => 1000,
+                };
+                // blocks
+                row.push(human_readable(fsu.size*1024, power));
 
-            // block used
-            row.push(fsu.used.to_string());
+                // block used
+                row.push(human_readable(fsu.used*1024, power));
 
-            // block available
-            row.push(fsu.avail.to_string());
+                // block available
+                row.push(human_readable(fsu.avail*1024, power));
+            } else {
+                // blocks
+                row.push(fsu.size.to_string());
+
+                // block used
+                row.push(fsu.used.to_string());
+
+                // block available
+                row.push(fsu.avail.to_string());
+            }
 
             // block used percent
             row.push(fsu.pcent.to_string() + "%");
@@ -258,6 +334,10 @@ fn get_all_entries(options: &Options) -> Table {
 
             table.add_row(&row);
         }
+    }
+
+    if options.human_readable {
+        table.change_field_name("1K-blocks", "Size");
     }
 
     table
@@ -323,7 +403,6 @@ fn filter_mountinfo_list(list: Vec<MountInfo>, options: &Options) -> Vec<MountIn
 }
 
 fn main() {
-    //println!("{:?}", cli::parse_args());
     let options = parse_args();
     let table = get_all_entries(&options);
     if table.is_empty() {

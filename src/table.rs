@@ -35,6 +35,31 @@ impl Default for FieldAlign {
 }
 
 impl Table {
+    pub fn change_field_name(&mut self, orig: &str, new: &str) {
+        for i in 0..self.fields.len() {
+            if self.fields[i].eq(orig) {
+                self.fields[i] = new.to_owned();
+            }
+        }
+        self.update_column_width();
+    }
+
+    fn update_column_width(&mut self) {
+        for i in 0..self.column_width.len() {
+            self.column_width[i] = 0;
+        }
+
+        for (i,field) in self.fields.iter().enumerate() {
+            self.column_width[i] = std::cmp::max(self.column_width[i], field.len());
+        }
+
+        for content in self.content.iter() {
+            for (i, v) in content.iter().enumerate() {
+                self.column_width[i] = std::cmp::max(self.column_width[i], v.len());
+            }
+        }
+    }
+
     pub fn new<T: AsRef<str>>(fields: &[T]) -> Table {
         Table {
             fields: fields.iter().map(|x| x.as_ref().to_string()).collect(),
