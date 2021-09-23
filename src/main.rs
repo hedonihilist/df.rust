@@ -2,6 +2,7 @@ mod cli;
 mod mountinfo;
 mod table;
 
+use crate::cli::parse_args;
 use crate::table::FieldAlign::{Left, Right};
 use cli::Options;
 use mountinfo::MountInfo;
@@ -48,6 +49,24 @@ fn percent_round_up(a: u64, b: u64) -> u32 {
         (100u64 * a / b) as u32
     } else {
         1 + (100u64 * a / b) as u32
+    }
+}
+
+fn fieldname_to_label(s: &str) -> &str {
+    match s {
+        "source" => "Filesystem",
+        "fstype" => "Type",
+        "file" => "File",
+        "target" => "Mounted on",
+        "itotal" => "Inodes",
+        "iused" => "IUsed",
+        "iavail" => "IFree",
+        "ipcent" => "IUse%",
+        "size" => "1K-blocks",
+        "used" => "Used",
+        "avail" => "Avail",
+        "pcent" => "Use%",
+        _ => "",
     }
 }
 
@@ -110,10 +129,64 @@ fn get_dev(mount: MountInfo, options: &Options) -> Option<FsUsage> {
     Some(fs_usage)
 }
 
+
+fn options_to_fields(options: &Options) -> Vec<String> {
+    if options.output_all_fields {
+        return vec![
+            "Filesystem",
+            "Type",
+            "Inodes",
+            "IUsed",
+            "IFree",
+            "IUse%",
+            "1K-blocks",
+            "Used",
+            "Avail",
+            "Use%",
+            "File",
+            "Mounted on",
+        ].iter().map(|x| x.to_string()).collect();
+    }
+    if !options.field_list.is_empty() {
+        let mut fields = vec![];
+        for f in options.field_list.iter() {
+            let name = fieldname_to_label(f);
+            if name.is_empty() {
+                panic!("no such field: {}", f);
+            }
+            fields.push(name.to_owned());
+        }
+        return fields
+    }
+    // 没有写明fields, 默认现实block，写明了inode则显示inodes
+    if options.inodes {
+        return vec![
+            "Filesystem",
+            "Inodes",
+            "IUsed",
+            "IFree",
+            "IUse%",
+            "Mounted on",
+        ].iter().map(|x| x.to_string()).collect();
+    }
+    vec![
+        "Filesystem",
+        "1K-blocks",
+        "Used",
+        "Avail",
+        "Use%",
+        "File",
+        "Mounted on",
+    ].iter().map(|x| x.to_string()).collect()
+}
+
+fn show_table(options: &Options, table: &Table) {
+    let fields = options_to_fields(options);
+    println!("{}", table.to_string_partial(&fields));
+}
+
 fn get_all_entries(options: &Options) -> Table {
     let mountlist = filter_mountinfo_list(mountinfo::get_mountinfo_list(), options);
-
-    // decide the fields
 
     let fields = vec![
         "Filesystem",
@@ -127,7 +200,7 @@ fn get_all_entries(options: &Options) -> Table {
         "Avail",
         "Use%",
         "File",
-        "Mounted",
+        "Mounted on",
     ];
     let align_list = vec![
         Left, Left, Right, Right, Right, Right, Right, Right, Right, Right, Left, Left,
@@ -182,17 +255,12 @@ fn get_all_entries(options: &Options) -> Table {
 
             // mount point
             row.push(fsu.target.to_string());
-            //println!("{:?}", &fsu);
-            // convert to
+
             table.add_row(&row);
-        } else {
-            //println!("ignored");
         }
     }
 
     table
-    // store in table
-    //Table::new(&vec![""])
 }
 
 /**
@@ -256,6 +324,11 @@ fn filter_mountinfo_list(list: Vec<MountInfo>, options: &Options) -> Vec<MountIn
 
 fn main() {
     //println!("{:?}", cli::parse_args());
-    let table = get_all_entries(&Options::default());
-    println!("{}", table.to_string());
+    let options = parse_args();
+    let table = get_all_entries(&options);
+    if table.is_empty() {
+        println!("no file systems processed");
+        return;
+    }
+    show_table(&options, &table);
 }

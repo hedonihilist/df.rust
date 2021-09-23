@@ -136,9 +136,6 @@ pub fn parse_args() -> Options {
             .split(",")
             .map(|x| x.to_owned())
             .collect();
-        for field in options.field_list.iter() {
-            println!("{}", field);
-        }
     }
 
     options.print_grand_total = matches.is_present("total");

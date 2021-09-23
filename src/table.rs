@@ -43,6 +43,14 @@ impl Table {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.content.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn add_row<T: AsRef<str>>(&mut self, row: &[T]) {
         if row.len() != self.fields.len() {
             panic!("size doesn't match");
